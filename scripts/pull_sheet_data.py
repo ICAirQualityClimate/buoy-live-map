@@ -29,14 +29,14 @@ from google.oauth2.service_account import Credentials
 # Column headers exactly as they appear in row 1 of the Google Sheet.
 # Change these to match whatever your buoy firmware / Adafruit IO export
 # actually names its columns.
-COL_BUOY_ID = "buoy_id"        # which buoy this row belongs to (e.g. "buoy_5")
-COL_GPS_TIME = "gps_time"      # ISO 8601 UTC timestamp from the GPS fix
-COL_LAT = "latitude"
-COL_LON = "longitude"
-COL_TEMP_C = "temperature_c"
+COL_BUOY_ID = "Buoy #"        # which buoy this row belongs to (e.g. "buoy_5")
+COL_GPS_TIME = "timestamp"      # ISO 8601 UTC timestamp from the GPS fix
+COL_LAT = "lat"
+COL_LON = "lon"
+COL_TEMP_C = "temp_c"
 
 # Name of the worksheet (tab) inside the spreadsheet to read from.
-WORKSHEET_NAME = "Sheet1"
+WORKSHEET_NAME = "All Data"
 
 # Where the accumulated track data gets written (read by index.html).
 OUTPUT_PATH = Path("data/buoy_track.json")
