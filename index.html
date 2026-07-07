@@ -285,7 +285,7 @@
       updateHud(allLatest[0].id, allLatest[0].point);
       // Frame the map around all current buoy positions
       const bounds = L.latLngBounds(allLatest.map(b => [b.point.lat, b.point.lon]));
-      map.fitBounds(bounds.pad(0.5));
+      // map.fitBounds(bounds.pad(0.5));
     }
   }
 
