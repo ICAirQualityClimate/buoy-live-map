@@ -29,14 +29,14 @@ from google.oauth2.service_account import Credentials
 # Column headers exactly as they appear in row 1 of the Google Sheet.
 # Change these to match whatever your buoy firmware / Adafruit IO export
 # actually names its columns.
-COL_BUOY_ID = "Buoy #"        # which buoy this row belongs to (e.g. "buoy_5")
-COL_GPS_TIME = "timestamp"      # ISO 8601 UTC timestamp from the GPS fix
-COL_LAT = "lat"
-COL_LON = "lon"
-COL_TEMP_C = "temp_c"
+COL_BUOY_ID = "buoy_id"        # which buoy this row belongs to (e.g. "buoy_5")
+COL_GPS_TIME = "gps_time"      # ISO 8601 UTC timestamp from the GPS fix
+COL_LAT = "latitude"
+COL_LON = "longitude"
+COL_TEMP_C = "temperature_c"
 
 # Name of the worksheet (tab) inside the spreadsheet to read from.
-WORKSHEET_NAME = "All Data"
+WORKSHEET_NAME = "Sheet1"
 
 # Where the accumulated track data gets written (read by index.html).
 OUTPUT_PATH = Path("data/buoy_track.json")
@@ -67,6 +67,17 @@ def load_existing_data():
     return {"buoys": {}, "last_updated": None}
 
 
+def try_float(value):
+    """Convert a sheet cell to a float, or return None if it's blank,
+    'N/A', or anything else that isn't a valid number."""
+    if value in ("", None):
+        return None
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None
+
+
 def merge_new_rows(data, rows):
     """Add rows we haven't seen before. A row is identified by its
     (buoy_id, gps_time) pair, so re-running this script never creates
@@ -75,12 +86,13 @@ def merge_new_rows(data, rows):
     for row in rows:
         buoy_id = str(row.get(COL_BUOY_ID, "buoy_1")).strip() or "buoy_1"
         gps_time = str(row.get(COL_GPS_TIME, "")).strip()
-        lat = row.get(COL_LAT)
-        lon = row.get(COL_LON)
-        temp_c = row.get(COL_TEMP_C)
 
-        if not gps_time or lat in ("", None) or lon in ("", None):
-            continue  # skip incomplete rows (e.g. a GPS fix that failed)
+        lat = try_float(row.get(COL_LAT))
+        lon = try_float(row.get(COL_LON))
+        temp_c = try_float(row.get(COL_TEMP_C))
+
+        if not gps_time or lat is None or lon is None:
+            continue  # skip rows with no timestamp or no valid GPS fix (e.g. "N/A")
 
         buoy = data["buoys"].setdefault(
             buoy_id, {"name": buoy_id, "history": []}
@@ -91,9 +103,9 @@ def merge_new_rows(data, rows):
 
         buoy["history"].append({
             "gps_time": gps_time,
-            "lat": float(lat),
-            "lon": float(lon),
-            "temp_c": float(temp_c) if temp_c not in ("", None) else None,
+            "lat": lat,
+            "lon": lon,
+            "temp_c": temp_c,  # None is fine here -- the map just shows "—"
         })
         added += 1
 
