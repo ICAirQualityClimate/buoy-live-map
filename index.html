@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lake Champlain Drift Buoy Tracker</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg-deep: #0b1d2e;
+    --panel: #12293f;
+    --panel-border: #234158;
+    --accent-buoy: #ff6b35;
+    --accent-track: #4fb6c4;
+    --text-primary: #e8edf2;
+    --text-muted: #7c93a6;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--bg-deep);
+    font-family: 'Inter', sans-serif;
+    color: var(--text-primary);
+    overflow: hidden;
+  }
+
+  #map {
+    position: absolute;
+    inset: 0;
+    background: var(--bg-deep);
+  }
+
+  /* Dim/tint the base map so our HUD elements read clearly on top */
+  .leaflet-tile-pane { filter: saturate(0.7) brightness(0.85); }
+
+  /* ---- Title bar ---- */
+  .titlebar {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 1000;
+    background: rgba(18, 41, 63, 0.92);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 10px 16px;
+    max-width: 320px;
+  }
+
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--accent-track);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent-buoy);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255,107,53,0.5); }
+    50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(255,107,53,0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .live-dot { animation: none; }
+  }
+
+  .titlebar h1 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    margin: 0;
+    text-transform: uppercase;
+  }
+
+  .titlebar p {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 6px 0 0 0;
+    line-height: 1.4;
+  }
+
+  /* ---- Telemetry HUD panel ---- */
+  .hud {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    z-index: 1000;
+    background: rgba(18, 41, 63, 0.95);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 14px 16px;
+    min-width: 240px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .hud-label {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .hud-buoy-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent-buoy);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .hud-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    border-bottom: 1px dashed var(--panel-border);
+    font-size: 13px;
+  }
+  .hud-row:last-child { border-bottom: none; }
+
+  .hud-row .val { color: var(--text-primary); }
+
+  .hud-empty {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* Leaflet popup restyle to match the instrument-panel look */
+  .leaflet-popup-content-wrapper {
+    background: var(--panel);
+    color: var(--text-primary);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+  }
+  .leaflet-popup-tip { background: var(--panel); }
+  .leaflet-popup-content {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    margin: 10px 12px;
+  }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="titlebar">
+  <div class="eyebrow"><span class="live-dot"></span>Live telemetry</div>
+  <h1>Lake Champlain Drift Buoy Tracker</h1>
+  <p>Position and water temperature, pulled from the deployment log every 20 minutes.</p>
+</div>
+
+<div class="hud" id="hud">
+  <div class="hud-empty">Waiting for buoy data&hellip;</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+  const DATA_URL = 'data/buoy_track.json';
+  const REFETCH_MS = 5 * 60 * 1000; // check for new data every 5 min in-browser
+  const TRACK_COLORS = ['#4fb6c4', '#ff6b35', '#c9d16f', '#a17ce8'];
+
+  const map = L.map('map', { zoomControl: true }).setView([44.35, -73.35], 10); // Lake Champlain
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    maxZoom: 19,
+  }).addTo(map);
+
+  const buoyMarkerIcon = L.divIcon({
+    className: '',
+    html: `<div style="
+      width: 14px; height: 14px; border-radius: 50%;
+      background: #ff6b35; border: 2px solid #e8edf2;
+      box-shadow: 0 0 6px rgba(255,107,53,0.8);
+    "></div>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  });
+
+  let layerGroup = L.layerGroup().addTo(map);
+
+  function formatTime(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d)) return iso;
+    return d.toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+  }
+
+  function updateHud(buoyId, point) {
+    const hud = document.getElementById('hud');
+    if (!point) {
+      hud.innerHTML = '<div class="hud-empty">Waiting for buoy data&hellip;</div>';
+      return;
+    }
+    const temp = (point.temp_c === null || point.temp_c === undefined)
+      ? '—' : `${point.temp_c.toFixed(1)} &deg;C`;
+    hud.innerHTML = `
+      <div class="hud-buoy-name">${buoyId}</div>
+      <div class="hud-row"><span class="hud-label">Lat</span><span class="val">${point.lat.toFixed(5)}</span></div>
+      <div class="hud-row"><span class="hud-label">Lon</span><span class="val">${point.lon.toFixed(5)}</span></div>
+      <div class="hud-row"><span class="hud-label">Water temp</span><span class="val">${temp}</span></div>
+      <div class="hud-row"><span class="hud-label">Fix time</span><span class="val">${formatTime(point.gps_time)}</span></div>
+    `;
+  }
+
+  async function loadData() {
+    let data;
+    try {
+      const res = await fetch(DATA_URL + '?t=' + Date.now());
+      data = await res.json();
+    } catch (err) {
+      console.error('Could not load buoy track data:', err);
+      return;
+    }
+
+    layerGroup.clearLayers();
+    const buoyIds = Object.keys(data.buoys || {});
+
+    if (buoyIds.length === 0) {
+      updateHud(null, null);
+      return;
+    }
+
+    const allLatest = [];
+
+    buoyIds.forEach((buoyId, i) => {
+      const buoy = data.buoys[buoyId];
+      const history = buoy.history || [];
+      if (history.length === 0) return;
+
+      const color = TRACK_COLORS[i % TRACK_COLORS.length];
+      const latLngs = history.map(pt => [pt.lat, pt.lon]);
+
+      // Drift trail
+      L.polyline(latLngs, { color, weight: 2, opacity: 0.7, dashArray: '4 4' })
+        .addTo(layerGroup);
+
+      // Current position marker
+      const latest = history[history.length - 1];
+      const marker = L.marker([latest.lat, latest.lon], { icon: buoyMarkerIcon })
+        .addTo(layerGroup);
+
+      const temp = (latest.temp_c === null || latest.temp_c === undefined)
+        ? '—' : `${latest.temp_c.toFixed(1)} &deg;C`;
+      marker.bindPopup(`
+        <strong>${buoy.name || buoyId}</strong><br>
+        ${latest.lat.toFixed(5)}, ${latest.lon.toFixed(5)}<br>
+        ${temp}<br>
+        ${formatTime(latest.gps_time)}
+      `);
+      marker.on('click', () => updateHud(buoy.name || buoyId, latest));
+
+      allLatest.push({ id: buoy.name || buoyId, point: latest });
+    });
+
+    if (allLatest.length > 0) {
+      updateHud(allLatest[0].id, allLatest[0].point);
+      // Frame the map around all current buoy positions
+      const bounds = L.latLngBounds(allLatest.map(b => [b.point.lat, b.point.lon]));
+      map.fitBounds(bounds.pad(0.5));
+    }
+  }
+
+  loadData();
+  setInterval(loadData, REFETCH_MS);
+</script>
+
+</body>
+</html>
