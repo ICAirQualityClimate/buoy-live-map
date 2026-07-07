@@ -217,8 +217,8 @@
     }
     const temp = (point.temp_c === null || point.temp_c === undefined)
       ? '—' : `${point.temp_c.toFixed(1)} &deg;C`;
-    const voltage = (point.voltage === null || point.voltage === undefined)
-      ? '—' : `${point.voltage.toFixed(2)} V`;
+    const voltage = (point.volts === null || point.volts === undefined)
+      ? '—' : `${point.volts.toFixed(2)} V`;
     hud.innerHTML = `
       <div class="hud-buoy-name">${buoyId}</div>
       <div class="hud-row"><span class="hud-label">Lat</span><span class="val">${point.lat.toFixed(5)}</span></div>
@@ -268,8 +268,8 @@
 
       const temp = (latest.temp_c === null || latest.temp_c === undefined)
         ? '—' : `${latest.temp_c.toFixed(1)} &deg;C`;
-      const voltage = (latest.voltage === null || latest.voltage === undefined)
-        ? '—' : `${latest.voltage.toFixed(2)} V`;
+      const voltage = (latest.volts === null || latest.volts === undefined)
+        ? '—' : `${latest.volts.toFixed(2)} V`;
       marker.bindPopup(`
         <strong>${buoy.name || buoyId}</strong><br>
         ${latest.lat.toFixed(5)}, ${latest.lon.toFixed(5)}<br>
