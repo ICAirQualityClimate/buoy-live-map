@@ -34,7 +34,7 @@ COL_GPS_TIME = "timestamp"      # ISO 8601 UTC timestamp from the GPS fix
 COL_LAT = "lat"
 COL_LON = "lon"
 COL_TEMP_C = "temp_c"
-COL_VOLTAGE = "voltage"
+COL_VOLTAGE = "voltage "
 
 # Name of the worksheet (tab) inside the spreadsheet to read from.
 WORKSHEET_NAME = "All Data"
