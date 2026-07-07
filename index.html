@@ -187,16 +187,18 @@
     maxZoom: 19,
   }).addTo(map);
 
-  const buoyMarkerIcon = L.divIcon({
-    className: '',
-    html: `<div style="
-      width: 14px; height: 14px; border-radius: 50%;
-      background: #ff6b35; border: 2px solid #e8edf2;
-      box-shadow: 0 0 6px rgba(255,107,53,0.8);
-    "></div>`,
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
-  });
+  function buoyMarkerIcon(color) {
+    return L.divIcon({
+      className: '',
+      html: `<div style="
+        width: 14px; height: 14px; border-radius: 50%;
+        background: ${color}; border: 2px solid #e8edf2;
+        box-shadow: 0 0 6px ${color}CC;
+      "></div>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7],
+    });
+  }
 
   let layerGroup = L.layerGroup().addTo(map);
 
@@ -215,11 +217,14 @@
     }
     const temp = (point.temp_c === null || point.temp_c === undefined)
       ? '—' : `${point.temp_c.toFixed(1)} &deg;C`;
+    const voltage = (point.voltage === null || point.voltage === undefined)
+      ? '—' : `${point.voltage.toFixed(2)} V`;
     hud.innerHTML = `
       <div class="hud-buoy-name">${buoyId}</div>
       <div class="hud-row"><span class="hud-label">Lat</span><span class="val">${point.lat.toFixed(5)}</span></div>
       <div class="hud-row"><span class="hud-label">Lon</span><span class="val">${point.lon.toFixed(5)}</span></div>
       <div class="hud-row"><span class="hud-label">Water temp</span><span class="val">${temp}</span></div>
+      <div class="hud-row"><span class="hud-label">Battery</span><span class="val">${voltage}</span></div>
       <div class="hud-row"><span class="hud-label">Fix time</span><span class="val">${formatTime(point.gps_time)}</span></div>
     `;
   }
@@ -258,15 +263,17 @@
 
       // Current position marker
       const latest = history[history.length - 1];
-      const marker = L.marker([latest.lat, latest.lon], { icon: buoyMarkerIcon })
+      const marker = L.marker([latest.lat, latest.lon], { icon: buoyMarkerIcon(color) })
         .addTo(layerGroup);
 
       const temp = (latest.temp_c === null || latest.temp_c === undefined)
         ? '—' : `${latest.temp_c.toFixed(1)} &deg;C`;
+      const voltage = (latest.voltage === null || latest.voltage === undefined)
+        ? '—' : `${latest.voltage.toFixed(2)} V`;
       marker.bindPopup(`
         <strong>${buoy.name || buoyId}</strong><br>
         ${latest.lat.toFixed(5)}, ${latest.lon.toFixed(5)}<br>
-        ${temp}<br>
+        ${temp} &middot; ${voltage}<br>
         ${formatTime(latest.gps_time)}
       `);
       marker.on('click', () => updateHud(buoy.name || buoyId, latest));

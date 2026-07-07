@@ -34,6 +34,7 @@ COL_GPS_TIME = "timestamp"      # ISO 8601 UTC timestamp from the GPS fix
 COL_LAT = "lat"
 COL_LON = "lon"
 COL_TEMP_C = "temp_c"
+COL_VOLTAGE = "voltage"
 
 # Name of the worksheet (tab) inside the spreadsheet to read from.
 WORKSHEET_NAME = "All Data"
@@ -90,6 +91,7 @@ def merge_new_rows(data, rows):
         lat = try_float(row.get(COL_LAT))
         lon = try_float(row.get(COL_LON))
         temp_c = try_float(row.get(COL_TEMP_C))
+        voltage= try_float(row.get(COL_VOLTAGE))
 
         if not gps_time or lat is None or lon is None:
             continue  # skip rows with no timestamp or no valid GPS fix (e.g. "N/A")
@@ -106,6 +108,7 @@ def merge_new_rows(data, rows):
             "lat": lat,
             "lon": lon,
             "temp_c": temp_c,  # None is fine here -- the map just shows "—"
+            "volts": voltage,
         })
         added += 1
 
