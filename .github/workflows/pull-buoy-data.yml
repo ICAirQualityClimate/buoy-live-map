@@ -5,7 +5,7 @@ on:
     # Fires at :00, :20, :40 past every hour -- a true 20-minute cadence,
     # which Google Apps Script triggers can't do natively (they're limited
     # to 1/5/10/15/30-minute steps).
-    - cron: "*/3 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch: {}   # lets you trigger a run manually from the Actions tab
 
 permissions:
@@ -41,3 +41,4 @@ jobs:
           git push
 
 # test
+# test 1
