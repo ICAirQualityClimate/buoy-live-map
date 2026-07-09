@@ -377,16 +377,10 @@
 
     if (allLatest.length > 0) {
       updateHud(allLatest[0].id, allLatest[0].point);
-<<<<<<< HEAD
       // Map view stays fixed on Lake Champlain (set in the initial
       // map.setView call above) rather than auto-zooming to fit whatever
       // points come in -- keeps test points near Ithaca, etc. from
       // yanking the view away from the lake.
-=======
-      // Frame the map around all current buoy positions
-      const bounds = L.latLngBounds(allLatest.map(b => [b.point.lat, b.point.lon]));
-      // map.fitBounds(bounds.pad(0.5));
->>>>>>> 516fa5fa31eb901d9db37ed22d181c28b7b902f0
     }
   }
 
