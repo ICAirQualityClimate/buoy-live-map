@@ -145,6 +145,54 @@
     font-family: 'Inter', sans-serif;
   }
 
+  /* ---- Buoy toggle panel ---- */
+  .toggle-panel {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 1000;
+    background: rgba(18, 41, 63, 0.92);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 10px 14px;
+    min-width: 140px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .toggle-panel-title {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    cursor: pointer;
+    font-size: 13px;
+    user-select: none;
+  }
+
+  .toggle-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .toggle-row input {
+    accent-color: var(--accent-track);
+    cursor: pointer;
+  }
+
+  .toggle-row.off {
+    color: var(--text-muted);
+  }
+
   /* Leaflet popup restyle to match the instrument-panel look */
   .leaflet-popup-content-wrapper {
     background: var(--panel);
@@ -174,6 +222,11 @@
   <div class="hud-empty">Waiting for buoy data&hellip;</div>
 </div>
 
+<div class="toggle-panel" id="togglePanel" style="display: none;">
+  <div class="toggle-panel-title">Tracks</div>
+  <div id="toggleList"></div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
   const DATA_URL = 'data/buoy_track.json';
@@ -200,7 +253,8 @@
     });
   }
 
-  let layerGroup = L.layerGroup().addTo(map);
+  let buoyLayers = {};   // buoyId -> L.layerGroup (trail + marker for that buoy)
+  let buoyVisible = {};  // buoyId -> true/false, remembers toggle state across refreshes
 
   function formatTime(iso) {
     if (!iso) return '—';
@@ -217,8 +271,8 @@
     }
     const temp = (point.temp_c === null || point.temp_c === undefined)
       ? '—' : `${point.temp_c.toFixed(1)} &deg;C`;
-    const voltage = (point.volts === null || point.volts === undefined)
-      ? '—' : `${point.volts.toFixed(2)} V`;
+    const voltage = (point.voltage === null || point.voltage === undefined)
+      ? '—' : `${point.voltage.toFixed(2)} V`;
     hud.innerHTML = `
       <div class="hud-buoy-name">${buoyId}</div>
       <div class="hud-row"><span class="hud-label">Lat</span><span class="val">${point.lat.toFixed(5)}</span></div>
@@ -239,7 +293,6 @@
       return;
     }
 
-    layerGroup.clearLayers();
     const buoyIds = Object.keys(data.buoys || {});
 
     if (buoyIds.length === 0) {
@@ -248,44 +301,86 @@
     }
 
     const allLatest = [];
+    const toggleList = document.getElementById('toggleList');
+    const togglePanel = document.getElementById('togglePanel');
+    toggleList.innerHTML = '';
 
     buoyIds.forEach((buoyId, i) => {
       const buoy = data.buoys[buoyId];
       const history = buoy.history || [];
       if (history.length === 0) return;
 
+      const label = buoy.name || buoyId;
       const color = TRACK_COLORS[i % TRACK_COLORS.length];
       const latLngs = history.map(pt => [pt.lat, pt.lon]);
 
+      // Each buoy gets its own layer group so its trail + marker can be
+      // shown/hidden together via the toggle panel.
+      if (!buoyLayers[buoyId]) {
+        buoyLayers[buoyId] = L.layerGroup();
+        if (buoyVisible[buoyId] === undefined) buoyVisible[buoyId] = true; // default on
+      }
+      const layer = buoyLayers[buoyId];
+      layer.clearLayers();
+
       // Drift trail
       L.polyline(latLngs, { color, weight: 2, opacity: 0.7, dashArray: '4 4' })
-        .addTo(layerGroup);
+        .addTo(layer);
 
       // Current position marker
       const latest = history[history.length - 1];
       const marker = L.marker([latest.lat, latest.lon], { icon: buoyMarkerIcon(color) })
-        .addTo(layerGroup);
+        .addTo(layer);
 
       const temp = (latest.temp_c === null || latest.temp_c === undefined)
         ? '—' : `${latest.temp_c.toFixed(1)} &deg;C`;
-      const voltage = (latest.volts === null || latest.volts === undefined)
-        ? '—' : `${latest.volts.toFixed(2)} V`;
+      const voltage = (latest.voltage === null || latest.voltage === undefined)
+        ? '—' : `${latest.voltage.toFixed(2)} V`;
       marker.bindPopup(`
-        <strong>${buoy.name || buoyId}</strong><br>
+        <strong>${label}</strong><br>
         ${latest.lat.toFixed(5)}, ${latest.lon.toFixed(5)}<br>
         ${temp} &middot; ${voltage}<br>
         ${formatTime(latest.gps_time)}
       `);
-      marker.on('click', () => updateHud(buoy.name || buoyId, latest));
+      marker.on('click', () => updateHud(label, latest));
 
-      allLatest.push({ id: buoy.name || buoyId, point: latest });
+      if (buoyVisible[buoyId]) {
+        layer.addTo(map);
+      } else {
+        map.removeLayer(layer);
+      }
+
+      // Build this buoy's row in the toggle panel
+      const row = document.createElement('label');
+      row.className = 'toggle-row' + (buoyVisible[buoyId] ? '' : ' off');
+      row.innerHTML = `
+        <input type="checkbox" ${buoyVisible[buoyId] ? 'checked' : ''}>
+        <span class="toggle-swatch" style="background:${color}"></span>
+        <span>${label}</span>
+      `;
+      row.querySelector('input').addEventListener('change', (e) => {
+        buoyVisible[buoyId] = e.target.checked;
+        if (e.target.checked) {
+          buoyLayers[buoyId].addTo(map);
+          row.classList.remove('off');
+        } else {
+          map.removeLayer(buoyLayers[buoyId]);
+          row.classList.add('off');
+        }
+      });
+      toggleList.appendChild(row);
+
+      allLatest.push({ id: label, point: latest });
     });
+
+    togglePanel.style.display = buoyIds.length > 1 ? 'block' : 'none';
 
     if (allLatest.length > 0) {
       updateHud(allLatest[0].id, allLatest[0].point);
-      // Frame the map around all current buoy positions
-      const bounds = L.latLngBounds(allLatest.map(b => [b.point.lat, b.point.lon]));
-      map.fitBounds(bounds.pad(0.5));
+      // Map view stays fixed on Lake Champlain (set in the initial
+      // map.setView call above) rather than auto-zooming to fit whatever
+      // points come in -- keeps test points near Ithaca, etc. from
+      // yanking the view away from the lake.
     }
   }
 
