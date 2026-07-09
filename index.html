@@ -326,7 +326,23 @@
       // Drift trail
       L.polyline(latLngs, { color, weight: 2, opacity: 0.7, dashArray: '4 4' })
         .addTo(layer);
-
+      // Small dot at every individual fix, so you can see each point,
+      // not just the connecting line. Last point is skipped here since
+      // it gets the larger "current position" marker below.
+      history.slice(0, -1).forEach(pt => {
+        L.circleMarker([pt.lat, pt.lon], {
+          radius: 3,
+          color: '#E8EDF2',
+          weight: 1,
+          fillColor: color,
+          fillOpacity: 0.9,
+        })
+          .bindPopup(`
+            ${pt.lat.toFixed(5)}, ${pt.lon.toFixed(5)}<br>
+            ${formatTime(pt.gps_time)}
+          `)
+          .addTo(layer);
+      });
       // Current position marker
       const latest = history[history.length - 1];
       const marker = L.marker([latest.lat, latest.lon], { icon: buoyMarkerIcon(color) })
